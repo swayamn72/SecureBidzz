@@ -1,5 +1,5 @@
 {
-  "name": "secure-bidz-frontend",
+  "name": "client",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,9 +13,11 @@
     "@tailwindcss/vite": "^4.1.16",
     "axios": "^1.12.2",
     "js-cookie": "^3.0.5",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.4",
+    "react-toastify": "^11.0.5",
     "tailwindcss": "^4.1.16"
   },
   "devDependencies": {
