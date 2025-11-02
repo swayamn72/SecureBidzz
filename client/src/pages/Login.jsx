@@ -9,6 +9,8 @@ export default function Login() {
   const [mfaCode, setMfaCode] = useState('')
   const [requiresMFA, setRequiresMFA] = useState(false)
   const [userId, setUserId] = useState('')
+  const [mfaType, setMfaType] = useState('totp')
+  const [selectedMfaType, setSelectedMfaType] = useState('totp')
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
 
@@ -22,6 +24,8 @@ export default function Login() {
       if (res.data.requiresMFA) {
         setRequiresMFA(true)
         setUserId(res.data.userId)
+        setMfaType(res.data.mfaType || res.data.availableMfaTypes?.[0] || 'totp') // Use user's configured type first, then fallback
+        setSelectedMfaType(res.data.mfaType || res.data.availableMfaTypes?.[0] || 'totp') // Set initial selected type
         toast.info('MFA required. Please enter your verification code.', {
           position: "top-right",
           autoClose: 5000,
@@ -50,7 +54,8 @@ export default function Login() {
     try {
       const res = await api.post('/auth/verify-mfa', {
         userId,
-        code: mfaCode
+        code: mfaCode,
+        type: selectedMfaType
       })
 
       sessionStorage.setItem('token', res.data.token)
@@ -64,6 +69,25 @@ export default function Login() {
       console.error('MFA verification error:', err)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  async function sendEmailCode() {
+    try {
+      await api.post('/auth/send-login-mfa-code', {
+        userId,
+        type: 'email'
+      })
+      toast.success('MFA code sent to your email!', {
+        position: "top-right",
+        autoClose: 3000,
+      })
+    } catch (err) {
+      console.error('Send email MFA error:', err)
+      toast.error('Failed to send MFA code. Please try again.', {
+        position: "top-right",
+        autoClose: 3000,
+      })
     }
   }
 
@@ -106,42 +130,87 @@ export default function Login() {
           </button>
         </form>
       ) : (
-        <form onSubmit={handleMfaSubmit} className="space-y-4">
-          <div className="text-center text-gray-600 mb-4">
-            <p>Enter the 6-digit code from your authenticator app</p>
+        <div className="space-y-4">
+          {/* MFA Type Selection */}
+          <div className="text-center mb-4">
+            <p className="text-gray-600 mb-2">Choose your verification method:</p>
+            <div className="flex justify-center space-x-2">
+              <button
+                type="button"
+                onClick={() => setSelectedMfaType('totp')}
+                className={`px-4 py-2 rounded border ${selectedMfaType === 'totp'
+                    ? 'bg-blue-500 text-white border-blue-500'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+              >
+                Authenticator App
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedMfaType('email')}
+                className={`px-4 py-2 rounded border ${selectedMfaType === 'email'
+                    ? 'bg-blue-500 text-white border-blue-500'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+              >
+                Email Code
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="block font-medium mb-1 text-center">Verification Code</label>
-            <input
-              type="text"
-              value={mfaCode}
-              onChange={e => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl tracking-widest"
-              placeholder="000000"
-              maxLength="6"
-              required
-              disabled={isLoading}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={isLoading || mfaCode.length !== 6}
-            className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? 'Verifying...' : 'Verify Code'}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setRequiresMFA(false)
-              setMfaCode('')
-              setUserId('')
-            }}
-            className="w-full bg-gray-500 text-white py-2 rounded hover:bg-gray-600 transition mt-2"
-          >
-            Back to Login
-          </button>
-        </form>
+
+          <form onSubmit={handleMfaSubmit} className="space-y-4">
+            <div className="text-center text-gray-600 mb-4">
+              <p>
+                {selectedMfaType === 'email'
+                  ? 'Enter the 6-digit code sent to your email'
+                  : 'Enter the 6-digit code from your authenticator app'
+                }
+              </p>
+            </div>
+            <div>
+              <label className="block font-medium mb-1 text-center">Verification Code</label>
+              <input
+                type="text"
+                value={mfaCode}
+                onChange={e => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl tracking-widest"
+                placeholder="000000"
+                maxLength="6"
+                required
+                disabled={isLoading}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isLoading || mfaCode.length !== 6}
+              className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? 'Verifying...' : 'Verify Code'}
+            </button>
+            {selectedMfaType === 'email' && (
+              <button
+                type="button"
+                onClick={sendEmailCode}
+                className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
+              >
+                Send Email Code
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setRequiresMFA(false)
+                setMfaCode('')
+                setUserId('')
+                setSelectedMfaType('totp')
+              }}
+              className="w-full bg-gray-500 text-white py-2 rounded hover:bg-gray-600 transition mt-2"
+            >
+              Back to Login
+            </button>
+          </form>
+        </div>
       )}
     </div>
   )

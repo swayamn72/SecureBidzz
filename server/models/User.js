@@ -48,8 +48,19 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  mfaType: {
+    type: String,
+    enum: ['totp', 'email'],
+    default: 'totp'
+  },
   mfaSecret: {
     type: String
+  },
+  emailMFACode: {
+    type: String
+  },
+  emailMFACodeExpires: {
+    type: Date
   },
   mfaBackupCodes: [{
     type: String

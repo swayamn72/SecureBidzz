@@ -18,6 +18,7 @@ router.get("/profile", verifyToken, async (req, res) => {
             email: user.email,
             wallet: user.wallet,
             mfaEnabled: user.mfaEnabled,
+            mfaType: user.mfaType,
             createdAt: user.createdAt,
             lastLogin: user.lastLogin
         });

@@ -19,11 +19,15 @@
 - [ ] Add admin unlock functionality
 
 ## Phase 4: Multi-Factor Authentication
-- [ ] Set up email service for MFA
-- [ ] Create MFA verification system
-- [ ] Update User model for MFA settings
-- [ ] Add MFA UI components
-- [ ] Implement backup codes
+- [x] Set up email service for MFA
+- [x] Create MFA verification system
+- [x] Update User model for MFA settings
+- [x] Add MFA UI components
+- [x] Implement backup codes
+- [x] Add support for both TOTP and Email MFA
+- [x] Update login flow to handle different MFA types
+- [x] Add MFA settings page with type selection
+- [x] Add email MFA code sending endpoint
 
 ## Phase 5: Advanced Session Management
 - [ ] Implement JWT refresh tokens

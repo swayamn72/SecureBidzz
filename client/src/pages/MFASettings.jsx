@@ -5,12 +5,15 @@ import { QRCodeSVG } from 'qrcode.react'
 
 export default function MFASettings() {
     const [mfaEnabled, setMfaEnabled] = useState(false)
+    const [mfaType, setMfaType] = useState('totp')
     const [loading, setLoading] = useState(true)
     const [enabling, setEnabling] = useState(false)
     const [disabling, setDisabling] = useState(false)
+    const [sendingCode, setSendingCode] = useState(false)
     const [qrCodeUrl, setQrCodeUrl] = useState('')
     const [showQR, setShowQR] = useState(false)
     const [password, setPassword] = useState('')
+    const [selectedType, setSelectedType] = useState('totp')
 
     useEffect(() => {
         checkMFAStatus()
@@ -18,10 +21,9 @@ export default function MFASettings() {
 
     const checkMFAStatus = async () => {
         try {
-            // We need to add an endpoint to check MFA status, or get it from user profile
-            // For now, we'll assume we can get it from a profile endpoint
             const res = await api.get('/auth/profile')
             setMfaEnabled(res.data.mfaEnabled)
+            setMfaType(res.data.mfaType || 'totp')
         } catch (err) {
             console.error('Error checking MFA status:', err)
         } finally {
@@ -32,14 +34,23 @@ export default function MFASettings() {
     const handleEnableMFA = async () => {
         setEnabling(true)
         try {
-            const res = await api.post('/auth/enable-mfa')
-            setQrCodeUrl(res.data.secret)
-            setShowQR(true)
-            toast.success('MFA setup initiated. Scan the QR code with your authenticator app.', {
-                position: "top-right",
-                autoClose: 5000,
-            })
-            // Note: In production, you might want to refresh the status or redirect
+            const res = await api.post('/auth/enable-mfa', { type: selectedType })
+
+            if (selectedType === 'totp') {
+                setQrCodeUrl(res.data.secret)
+                setShowQR(true)
+                toast.success('TOTP MFA setup initiated. Scan the QR code with your authenticator app.', {
+                    position: "top-right",
+                    autoClose: 5000,
+                })
+            } else if (selectedType === 'email') {
+                setMfaEnabled(true)
+                setMfaType('email')
+                toast.success('Email MFA has been enabled successfully!', {
+                    position: "top-right",
+                    autoClose: 3000,
+                })
+            }
         } catch (err) {
             toast.error('Failed to enable MFA. Please try again.', {
                 position: "top-right",
@@ -47,6 +58,24 @@ export default function MFASettings() {
             })
         } finally {
             setEnabling(false)
+        }
+    }
+
+    const handleSendEmailCode = async () => {
+        setSendingCode(true)
+        try {
+            await api.post('/auth/send-email-mfa')
+            toast.success('MFA code sent to your email!', {
+                position: "top-right",
+                autoClose: 3000,
+            })
+        } catch (err) {
+            toast.error('Failed to send MFA code. Please try again.', {
+                position: "top-right",
+                autoClose: 3000,
+            })
+        } finally {
+            setSendingCode(false)
         }
     }
 
@@ -63,6 +92,7 @@ export default function MFASettings() {
         try {
             await api.post('/auth/disable-mfa', { password })
             setMfaEnabled(false)
+            setMfaType('totp')
             setPassword('')
             toast.success('MFA has been disabled.', {
                 position: "top-right",
@@ -104,7 +134,7 @@ export default function MFASettings() {
                 <div className="flex items-center justify-between">
                     <span className="text-gray-700">MFA Status:</span>
                     <span className={`font-semibold ${mfaEnabled ? 'text-green-600' : 'text-red-600'}`}>
-                        {mfaEnabled ? 'Enabled' : 'Disabled'}
+                        {mfaEnabled ? `Enabled (${mfaType.toUpperCase()})` : 'Disabled'}
                     </span>
                 </div>
             </div>
@@ -113,25 +143,64 @@ export default function MFASettings() {
                 <div className="space-y-4">
                     <p className="text-gray-600 text-sm">
                         Enable two-factor authentication to add an extra layer of security to your account.
-                        You'll need an authenticator app like Google Authenticator or Authy.
+                        Choose between authenticator app or email verification.
                     </p>
+
+                    <div>
+                        <label className="block font-medium mb-2">MFA Method</label>
+                        <select
+                            value={selectedType}
+                            onChange={(e) => setSelectedType(e.target.value)}
+                            className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="totp">Authenticator App (TOTP)</option>
+                            <option value="email">Email Code</option>
+                        </select>
+                    </div>
+
+                    {selectedType === 'totp' && (
+                        <p className="text-sm text-gray-600">
+                            You'll need an authenticator app like Google Authenticator or Authy.
+                        </p>
+                    )}
+
+                    {selectedType === 'email' && (
+                        <p className="text-sm text-gray-600">
+                            A verification code will be sent to your email address during login.
+                        </p>
+                    )}
 
                     <button
                         onClick={handleEnableMFA}
                         disabled={enabling}
                         className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {enabling ? 'Setting up MFA...' : 'Enable MFA'}
+                        {enabling ? 'Setting up MFA...' : `Enable ${selectedType.toUpperCase()} MFA`}
                     </button>
                 </div>
             ) : (
                 <div className="space-y-4">
                     <p className="text-gray-600 text-sm">
-                        Your account is protected with two-factor authentication. To disable MFA, enter your password below.
+                        Your account is protected with {mfaType.toUpperCase()} two-factor authentication.
                     </p>
 
+                    {mfaType === 'email' && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                            <p className="text-sm text-blue-800 mb-2">
+                                Test your email MFA setup by sending a code to your email.
+                            </p>
+                            <button
+                                onClick={handleSendEmailCode}
+                                disabled={sendingCode}
+                                className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition disabled:opacity-50"
+                            >
+                                {sendingCode ? 'Sending...' : 'Send Test Code'}
+                            </button>
+                        </div>
+                    )}
+
                     <div>
-                        <label className="block font-medium mb-1">Confirm Password</label>
+                        <label className="block font-medium mb-1">Confirm Password to Disable MFA</label>
                         <input
                             type="password"
                             value={password}

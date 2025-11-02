@@ -197,7 +197,9 @@ router.post("/login", [
       return res.json({
         message: "MFA required",
         requiresMFA: true,
-        userId: user._id
+        userId: user._id,
+        availableMfaTypes: ['totp', 'email'], // Allow both types during login
+        mfaType: user.mfaType // Include the user's configured MFA type
       });
     }
 
@@ -222,7 +224,8 @@ router.post("/login", [
 // ✅ MFA Verification
 router.post("/verify-mfa", [
   body('userId').isMongoId().withMessage('Valid user ID required'),
-  body('code').isLength({ min: 6, max: 6 }).isNumeric().withMessage('Valid 6-digit code required')
+  body('code').isLength({ min: 6, max: 6 }).isNumeric().withMessage('Valid 6-digit code required'),
+  body('type').optional().isIn(['totp', 'email']).withMessage('Invalid MFA type')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -230,36 +233,65 @@ router.post("/verify-mfa", [
       return res.status(400).json({ error: errors.array()[0].msg });
     }
 
-    const { userId, code } = req.body;
+    const { userId, code, type } = req.body;
 
     const user = await User.findById(userId);
-    if (!user || !user.mfaEnabled || !user.mfaSecret) {
+    if (!user || !user.mfaEnabled) {
       return res.status(400).json({ error: "Invalid MFA request" });
     }
 
-    // Debug logging
-    console.log('Verifying MFA code:', code, 'for user:', userId);
-    const expectedCode = speakeasy.totp({
-      secret: user.mfaSecret,
-      encoding: 'base32'
-    });
-    console.log('Expected code:', expectedCode);
+    // Use the type from request body if provided, otherwise use user's configured type
+    const mfaType = type || user.mfaType;
 
-    // Verify TOTP code using speakeasy
-    const isValidCode = speakeasy.totp.verify({
-      secret: user.mfaSecret,
-      encoding: 'base32',
-      token: code,
-      window: 2 // Allow 2 time steps (30 seconds) tolerance
-    });
+    let isValidCode = false;
 
-    console.log('Verification result:', isValidCode);
+    if (mfaType === 'totp') {
+      // Verify TOTP code
+      if (!user.mfaSecret) {
+        return res.status(400).json({ error: "Invalid MFA request" });
+      }
+
+      console.log('Verifying TOTP code:', code, 'for user:', userId);
+      const expectedCode = speakeasy.totp({
+        secret: user.mfaSecret,
+        encoding: 'base32'
+      });
+      console.log('Expected code:', expectedCode);
+
+      isValidCode = speakeasy.totp.verify({
+        secret: user.mfaSecret,
+        encoding: 'base32',
+        token: code,
+        window: 2 // Allow 2 time steps (30 seconds) tolerance
+      });
+
+      console.log('TOTP verification result:', isValidCode);
+    } else if (mfaType === 'email') {
+      // Verify email code
+      if (!user.emailMFACode || !user.emailMFACodeExpires) {
+        return res.status(400).json({ error: "No email code sent or expired" });
+      }
+
+      if (new Date() > user.emailMFACodeExpires) {
+        return res.status(400).json({ error: "Email code has expired" });
+      }
+
+      console.log('Verifying email code:', code, 'for user:', userId);
+      isValidCode = user.emailMFACode === code;
+      console.log('Email verification result:', isValidCode);
+
+      // Clear the code after verification
+      user.emailMFACode = undefined;
+      user.emailMFACodeExpires = undefined;
+    } else {
+      return res.status(400).json({ error: "Invalid MFA type" });
+    }
 
     if (!isValidCode) {
       await AuditLog.logEvent({
         userId: user._id,
         action: 'LOGIN_FAILED',
-        details: { reason: 'Invalid MFA code' },
+        details: { reason: 'Invalid MFA code', type: user.mfaType },
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
         riskScore: 40
@@ -267,13 +299,12 @@ router.post("/verify-mfa", [
       return res.status(400).json({ error: "Invalid MFA code" });
     }
 
-    // MFA secret is kept for future verifications
     await user.save();
 
     await AuditLog.logEvent({
       userId: user._id,
       action: 'LOGIN_SUCCESS',
-      details: { method: 'MFA' },
+      details: { method: user.mfaType.toUpperCase() },
       ipAddress: req.ip,
       userAgent: req.get('User-Agent'),
       riskScore: 0
@@ -366,9 +397,17 @@ router.post("/change-password", [
 });
 
 // ✅ Enable MFA
-router.post("/enable-mfa", verifyTokenMiddleware, async (req, res) => {
+router.post("/enable-mfa", verifyTokenMiddleware, [
+  body('type').optional().isIn(['totp', 'email']).withMessage('Invalid MFA type')
+], async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
     const userId = req.user.id;
+    const { type = 'totp' } = req.body;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -379,30 +418,45 @@ router.post("/enable-mfa", verifyTokenMiddleware, async (req, res) => {
       return res.status(400).json({ error: "MFA is already enabled" });
     }
 
-    // Generate MFA secret
-    const secret = speakeasy.generateSecret({
-      name: `SecureBidz (${user.email})`,
-      issuer: 'SecureBidz'
-    });
-
-    user.mfaSecret = secret.base32;
+    user.mfaType = type;
     user.mfaEnabled = true;
+
+    if (type === 'totp') {
+      // Generate TOTP secret
+      const secret = speakeasy.generateSecret({
+        name: `SecureBidz (${user.email})`,
+        issuer: 'SecureBidz'
+      });
+      user.mfaSecret = secret.base32;
+    } else if (type === 'email') {
+      // For email MFA, no secret needed initially
+      user.mfaSecret = null;
+    }
+
     user.mfaBackupCodes = []; // Will be generated when setup is complete
     await user.save();
 
     await AuditLog.logEvent({
       userId: user._id,
       action: 'MFA_ENABLED',
-      details: { method: 'TOTP' },
+      details: { method: type.toUpperCase() },
       ipAddress: req.ip,
       userAgent: req.get('User-Agent'),
       riskScore: 0
     });
 
-    res.json({
-      message: "MFA enabled successfully",
-      secret: secret.otpauth_url // Frontend can generate QR code from this
-    });
+    if (type === 'totp') {
+      res.json({
+        message: "TOTP MFA enabled successfully",
+        type: 'totp',
+        secret: secret.otpauth_url // Frontend can generate QR code from this
+      });
+    } else {
+      res.json({
+        message: "Email MFA enabled successfully",
+        type: 'email'
+      });
+    }
   } catch (err) {
     console.error("Enable MFA error:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -450,6 +504,89 @@ router.post("/disable-mfa", verifyTokenMiddleware, [
     res.json({ message: "MFA disabled successfully" });
   } catch (err) {
     console.error("Disable MFA error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ✅ Send Email MFA Code (for authenticated users)
+router.post("/send-email-mfa", verifyTokenMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (!user.mfaEnabled || user.mfaType !== 'email') {
+      return res.status(400).json({ error: "Email MFA not enabled for this account" });
+    }
+
+    // Generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    user.emailMFACode = code;
+    user.emailMFACodeExpires = expiresAt;
+    await user.save();
+
+    // Send email
+    const emailResult = await sendMFACode(user.email, code);
+    if (!emailResult.success) {
+      return res.status(500).json({ error: "Failed to send MFA code" });
+    }
+
+    await AuditLog.logEvent({
+      userId: user._id,
+      action: 'MFA_CODE_SENT',
+      details: { method: 'EMAIL' },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+      riskScore: 0
+    });
+
+    res.json({ message: "MFA code sent to your email" });
+  } catch (err) {
+    console.error("Send email MFA error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ✅ Send Login MFA Code (for login flow, no auth required)
+router.post("/send-login-mfa-code", [
+  body('userId').isMongoId().withMessage('Valid user ID required'),
+  body('type').isIn(['email']).withMessage('Only email type supported for login MFA')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
+    const { userId, type } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user || !user.mfaEnabled) {
+      return res.status(400).json({ error: "Invalid MFA request" });
+    }
+
+    // Generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    user.emailMFACode = code;
+    user.emailMFACodeExpires = expiresAt;
+    await user.save();
+
+    // Send email
+    const emailResult = await sendMFACode(user.email, code);
+    if (!emailResult.success) {
+      return res.status(500).json({ error: "Failed to send MFA code" });
+    }
+
+    res.json({ message: "MFA code sent to your email" });
+  } catch (err) {
+    console.error("Send login MFA error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
