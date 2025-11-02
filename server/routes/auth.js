@@ -1,6 +1,7 @@
 import express from "express";
 import rateLimit from "express-rate-limit";
 import { body, validationResult } from "express-validator";
+import bcrypt from "bcrypt";
 import User from "../models/User.js";
 import AuditLog from "../models/AuditLog.js";
 import { generateToken } from "../utils/jwt.js";
@@ -266,8 +267,7 @@ router.post("/verify-mfa", [
       return res.status(400).json({ error: "Invalid MFA code" });
     }
 
-    // Clear MFA secret and generate token
-    user.mfaSecret = undefined;
+    // MFA secret is kept for future verifications
     await user.save();
 
     await AuditLog.logEvent({
