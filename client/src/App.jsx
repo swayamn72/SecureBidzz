@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import NavBar from './components/Navbar'
+import Footer from './components/Footer'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -14,9 +15,9 @@ import MFASettings from './pages/MFASettings'
 
 export default function App() {
   return (
-    <div>
+    <div className="min-h-screen flex flex-col">
       <NavBar />
-      <main style={{ padding: 20 }}>
+      <main className="flex-grow">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/mfa-settings" element={<MFASettings />} />
         </Routes>
       </main>
+      <Footer />
       <ToastContainer
         position="top-right"
         autoClose={5000}

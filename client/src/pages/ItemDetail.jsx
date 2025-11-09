@@ -84,11 +84,14 @@ export default function ItemDetail() {
   const isAuctionEnded = timeLeft === 'Auction ended'
 
   return (
-    <div className="max-w-2xl mx-auto mt-10 bg-white shadow-lg rounded-lg p-6">
+    <div className="max-w-2xl mx-auto mt-20 pt-4 bg-white shadow-lg rounded-lg p-6">
       <h2 className="text-3xl font-bold mb-4">{item.title}</h2>
       <p className="text-gray-600 mb-4">{item.description}</p>
       <p className="text-lg mb-2">Starting Price: ₹{item.start_price}</p>
       <p className="text-xl font-semibold text-blue-600 mb-4">Current Bid: ₹{item.current_bid}</p>
+      {item.bids && item.bids.length > 0 && (
+        <p className="text-lg mb-2">Highest Bidder: {item.bids[item.bids.length - 1].userId?.name || item.bids[item.bids.length - 1].userId || 'Anonymous'}</p>
+      )}
       <p className="text-lg mb-4">Time Left: <span className={isAuctionEnded ? 'text-red-500' : 'text-green-500'}>{timeLeft}</span></p>
 
       {isLoggedIn && !isAuctionEnded && (

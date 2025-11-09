@@ -67,64 +67,73 @@ export default function Signup() {
   }
 
   return (
-    <div className="max-w-md mx-auto mt-16 bg-white shadow-lg rounded-lg p-6">
-      <h2 className="text-2xl font-semibold mb-4 text-center">Create Account</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block font-medium mb-1">Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 fade-in">
+      <div className="glass rounded-2xl p-8 max-w-md w-full shadow-2xl">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold gradient-text mb-2">Create Account</h2>
+          <p className="text-gray-600">Join SecureBidz today</p>
         </div>
-        <div>
-          <label className="block font-medium mb-1">Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
-        </div>
-        <div>
-          <label className="block font-medium mb-1">Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={handlePasswordChange}
-            className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block font-semibold mb-2 text-gray-700">Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full"
+              placeholder="Enter your full name"
+              required
+            />
+          </div>
+          <div>
+            <label className="block font-semibold mb-2 text-gray-700">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="w-full"
+              placeholder="Enter your email"
+              required
+            />
+          </div>
+          <div>
+            <label className="block font-semibold mb-2 text-gray-700">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={handlePasswordChange}
+              className="w-full"
+              placeholder="Create a strong password"
+              required
+              disabled={isLoading}
+            />
+            {password && (
+              <p className={`text-sm mt-1 font-medium ${passwordStrength.color}`}>
+                🔐 Password strength: {passwordStrength.label}
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="block font-semibold mb-2 text-gray-700">Confirm Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              className="w-full"
+              placeholder="Confirm your password"
+              required
+              disabled={isLoading}
+            />
+          </div>
+          <button
+            type="submit"
             disabled={isLoading}
-          />
-          {password && (
-            <p className={`text-sm mt-1 ${passwordStrength.color}`}>
-              Password strength: {passwordStrength.label}
-            </p>
-          )}
-        </div>
-        <div>
-          <label className="block font-medium mb-1">Confirm Password</label>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={e => setConfirmPassword(e.target.value)}
-            className="w-full border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-            disabled={isLoading}
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? 'Creating Account...' : 'Sign Up'}
-        </button>
-      </form>
+            className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-lg shadow-lg"
+          >
+            {isLoading ? '🔄 Creating Account...' : '🚀 Sign Up'}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }

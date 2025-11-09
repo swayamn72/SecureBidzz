@@ -27,6 +27,11 @@ const itemSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
+    category: {
+        type: String,
+        default: 'General',
+        trim: true
+    },
     start_price: {
         type: Number,
         required: true,

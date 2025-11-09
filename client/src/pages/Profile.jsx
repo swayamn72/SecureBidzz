@@ -46,7 +46,7 @@ export default function Profile() {
     }
 
     return (
-        <div className="max-w-2xl mx-auto mt-10">
+        <div className="max-w-2xl mx-auto mt-20 pt-4">
             <h2 className="text-3xl font-bold mb-6 text-center">Profile</h2>
 
             <div className="bg-white shadow-lg rounded-lg p-6 mb-6">

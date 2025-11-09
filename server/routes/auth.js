@@ -421,9 +421,10 @@ router.post("/enable-mfa", verifyTokenMiddleware, [
     user.mfaType = type;
     user.mfaEnabled = true;
 
+    let secret;
     if (type === 'totp') {
       // Generate TOTP secret
-      const secret = speakeasy.generateSecret({
+      secret = speakeasy.generateSecret({
         name: `SecureBidz (${user.email})`,
         issuer: 'SecureBidz'
       });
